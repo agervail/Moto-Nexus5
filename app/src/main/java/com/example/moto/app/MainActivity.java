@@ -7,6 +7,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.BaseColumns;
@@ -17,6 +20,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +32,7 @@ public class MainActivity extends Activity {
 
     public class SmsMessageReceiver extends BroadcastReceiver {
         private static final String LOG_TAG = "SmsMessageReceiver";
+
         @Override
         public void onReceive(Context context, Intent intent) {
             Bundle extras = intent.getExtras();
@@ -52,13 +57,22 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        super.onStart();
+        Log.i(LOG_TAG, "CREATE");
         IntentFilter iff = new IntentFilter();
         iff.addAction("android.provider.Telephony.SMS_RECEIVED");
         this.registerReceiver(this.mSmsReceiver, iff);
 
+        defineLocation();
         setContentView(R.layout.activity_main);
     }
 
+    protected void onDestroy(){
+        super.onDestroy();
+        Log.i(LOG_TAG, "DESTROY");
+        this.unregisterReceiver(this.mSmsReceiver);
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -81,7 +95,7 @@ public class MainActivity extends Activity {
         return super.onOptionsItemSelected(item);
     }
 
-    public void received(String sender, String message){
+    public void received(String sender, String message) {
         Log.i(LOG_TAG, "sender " + sender + " message " + message);
         ListView lv = (ListView) this.findViewById(R.id.listView);
         String contact = getContactDisplayNameByNumber(sender);
@@ -90,18 +104,48 @@ public class MainActivity extends Activity {
         ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(
                 this,
                 android.R.layout.simple_list_item_1,
-                messages );
+                messages);
         lv.setAdapter(arrayAdapter);
     }
 
+    public void updateLocation(Location loc){
+        Log.i(LOG_TAG, "lat " + loc.getLatitude() + "long " + loc.getLongitude());
+        TextView locT = (TextView) this.findViewById(R.id.location);
+        locT.setText("lat " + loc.getLatitude() + "long " + loc.getLongitude());
+    }
+
+    public void defineLocation() {
+        // Acquire a reference to the system Location Manager
+        LocationManager locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
+
+        // Define a listener that responds to location updates
+        LocationListener locationListener = new LocationListener() {
+            public void onLocationChanged(Location location) {
+                // Called when a new location is found by the network location provider.
+                updateLocation(location);
+            }
+
+            public void onStatusChanged(String provider, int status, Bundle extras) {
+            }
+
+            public void onProviderEnabled(String provider) {
+            }
+
+            public void onProviderDisabled(String provider) {
+            }
+        };
+
+// Register the listener with the Location Manager to receive location updates
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+    }
 
     public String getContactDisplayNameByNumber(String number) {
         Uri uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number));
         String name = "?";
 
         ContentResolver contentResolver = getContentResolver();
-        Cursor contactLookup = contentResolver.query(uri, new String[] {BaseColumns._ID,
-                ContactsContract.PhoneLookup.DISPLAY_NAME }, null, null, null);
+        Cursor contactLookup = contentResolver.query(uri, new String[]{BaseColumns._ID,
+                ContactsContract.PhoneLookup.DISPLAY_NAME}, null, null, null);
 
         try {
             if (contactLookup != null && contactLookup.getCount() > 0) {
