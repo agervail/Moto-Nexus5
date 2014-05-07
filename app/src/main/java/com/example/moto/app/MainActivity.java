@@ -126,6 +126,7 @@ public class MainActivity extends Activity {
             }
 
             public void onStatusChanged(String provider, int status, Bundle extras) {
+                Log.i(LOG_TAG, "status changed " + status);
             }
 
             public void onProviderEnabled(String provider) {
