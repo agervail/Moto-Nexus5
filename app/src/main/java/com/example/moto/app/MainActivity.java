@@ -12,16 +12,22 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.provider.BaseColumns;
 import android.provider.ContactsContract;
 import android.telephony.SmsMessage;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,6 +35,10 @@ import java.util.List;
 public class MainActivity extends Activity {
 
     private static final String LOG_TAG = "SmsReceivedDialog";
+
+    private BtInterface bt = null;
+
+    private long lastTime = 0;
 
     public class SmsMessageReceiver extends BroadcastReceiver {
         private static final String LOG_TAG = "SmsMessageReceiver";
@@ -54,6 +64,33 @@ public class MainActivity extends Activity {
     private SmsMessageReceiver mSmsReceiver = new SmsMessageReceiver();
     private List<String> messages = new ArrayList<String>();
 
+    private Button connect, send;
+    private TextView btText;
+    private EditText editText;
+
+    final Handler handler = new Handler() {
+        public void handleMessage(Message msg) {
+            String data = msg.getData().getString("receivedData");
+
+            long t = System.currentTimeMillis();
+            if(t-lastTime > 100) {// Pour éviter que les messages soit coupés
+                btText.append("\n");
+                lastTime = System.currentTimeMillis();
+            }
+            btText.append(data);
+        }
+    };
+
+    final Handler handlerStatus = new Handler() {
+        public void handleMessage(Message msg) {
+            int co = msg.arg1;
+            if(co == 1) {
+                btText.append("Connected\n");
+            } else if(co == 2) {
+                btText.append("Disconnected\n");
+            }
+        }
+    };
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -66,10 +103,31 @@ public class MainActivity extends Activity {
 
         defineLocation();
         setContentView(R.layout.activity_main);
+
+        btText = (TextView) this.findViewById(R.id.btText);
+        bt = new BtInterface(handlerStatus, handler);
+        send = (Button) findViewById(R.id.send);
+        connect = (Button)findViewById(R.id.connect);
+        editText = (EditText)findViewById(R.id.editText);
+
+
+        send.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                bt.sendData(editText.getText().toString());
+            }
+        });
+        connect.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                bt.connect();
+            }
+        });
     }
 
     protected void onDestroy(){
         super.onDestroy();
+        bt.close();
         Log.i(LOG_TAG, "DESTROY");
         this.unregisterReceiver(this.mSmsReceiver);
     }
@@ -99,7 +157,7 @@ public class MainActivity extends Activity {
         Log.i(LOG_TAG, "sender " + sender + " message " + message);
         ListView lv = (ListView) this.findViewById(R.id.listView);
         String contact = getContactDisplayNameByNumber(sender);
-        messages.add(0, contact + " " + message);
+        messages.add(0, contact + " : " + message);
 
         ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(
                 this,
@@ -108,10 +166,12 @@ public class MainActivity extends Activity {
         lv.setAdapter(arrayAdapter);
     }
 
-    public void updateLocation(Location loc){
+    public void updateLocation(Location loc) throws IOException {
         Log.i(LOG_TAG, "lat " + loc.getLatitude() + "long " + loc.getLongitude());
         TextView locT = (TextView) this.findViewById(R.id.location);
         locT.setText("lat " + loc.getLatitude() + "long " + loc.getLongitude());
+        String url = "http://lamule73.servebeer.com/new_pos?lat="+ loc.getLatitude() +"&lng="+ loc.getLongitude();
+        new RequestTask().execute(url);
     }
 
     public void defineLocation() {
@@ -122,7 +182,11 @@ public class MainActivity extends Activity {
         LocationListener locationListener = new LocationListener() {
             public void onLocationChanged(Location location) {
                 // Called when a new location is found by the network location provider.
-                updateLocation(location);
+                try {
+                    updateLocation(location);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
 
             public void onStatusChanged(String provider, int status, Bundle extras) {
@@ -138,6 +202,7 @@ public class MainActivity extends Activity {
 
 // Register the listener with the Location Manager to receive location updates
         locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
     }
 
     public String getContactDisplayNameByNumber(String number) {
