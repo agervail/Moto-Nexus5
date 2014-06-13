@@ -10,13 +10,17 @@ import java.io.OutputStream;
 import java.util.Set;
 import java.util.UUID;
 
+import android.app.Activity;
+import android.app.NotificationManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
+import android.widget.Toast;
 
 public class BtInterface {
 
@@ -65,18 +69,26 @@ public class BtInterface {
         }
     }
 
-    public void connect() {
+    public void connect(final Activity activity) {
         new Thread() {
             @Override public void run() {
                 try {
-                    socket.connect();
+                    if(socket != null) {
+                        socket.connect();
 
-                    Message msg = handler.obtainMessage();
-                    msg.arg1 = 1;
-                    handler.sendMessage(msg);
+                        Message msg = handler.obtainMessage();
+                        msg.arg1 = 1;
+                        handler.sendMessage(msg);
 
-                    receiverThread.start();
+                        receiverThread.start();
+                    } else {
+                        activity.runOnUiThread(new Runnable() {
+                            public void run() {
+                                Toast.makeText(activity, "No device found", Toast.LENGTH_SHORT).show();
+                            }
+                        });
 
+                    }
                 } catch (IOException e) {
                     Log.v("N", "Connection Failed : "+e.getMessage());
                     e.printStackTrace();
@@ -87,7 +99,9 @@ public class BtInterface {
 
     public void close() {
         try {
-            socket.close();
+            if(socket != null) {
+                socket.close();
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }

@@ -23,8 +23,10 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import java.io.IOException;
@@ -67,6 +69,7 @@ public class MainActivity extends Activity {
     private Button connect, send;
     private TextView btText;
     private EditText editText;
+    private Location myLoc;
 
     final Handler handler = new Handler() {
         public void handleMessage(Message msg) {
@@ -104,8 +107,24 @@ public class MainActivity extends Activity {
         defineLocation();
         setContentView(R.layout.activity_main);
 
-        btText = (TextView) this.findViewById(R.id.btText);
         bt = new BtInterface(handlerStatus, handler);
+
+        Switch enableTrack = (Switch) findViewById(R.id.enableTrack);
+        enableTrack.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                if(b){
+                    String url = "http://lamule73.servebeer.com/new_track?lat="+ myLoc.getLatitude() +"&lng="+ myLoc.getLongitude()+"&id=toinou";
+                    new RequestTask().execute(url);
+                } else {
+                    String url = "http://lamule73.servebeer.com/end_track";
+                    new RequestTask().execute(url);
+                }
+            }
+        });
+
+        btText = (TextView) this.findViewById(R.id.btText);
+
         send = (Button) findViewById(R.id.send);
         connect = (Button)findViewById(R.id.connect);
         editText = (EditText)findViewById(R.id.editText);
@@ -120,7 +139,7 @@ public class MainActivity extends Activity {
         connect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                bt.connect();
+                bt.connect(MainActivity.this);
             }
         });
     }
@@ -167,10 +186,11 @@ public class MainActivity extends Activity {
     }
 
     public void updateLocation(Location loc) throws IOException {
+        myLoc = loc;
         Log.i(LOG_TAG, "lat " + loc.getLatitude() + "long " + loc.getLongitude());
         TextView locT = (TextView) this.findViewById(R.id.location);
         locT.setText("lat " + loc.getLatitude() + "long " + loc.getLongitude());
-        String url = "http://lamule73.servebeer.com/new_pos?lat="+ loc.getLatitude() +"&lng="+ loc.getLongitude();
+        String url = "http://lamule73.servebeer.com/new_pos?lat="+ loc.getLatitude() +"&lng="+ loc.getLongitude()+"&id=toinou";
         new RequestTask().execute(url);
     }
 
@@ -227,4 +247,5 @@ public class MainActivity extends Activity {
 
         return name;
     }
+
 }
